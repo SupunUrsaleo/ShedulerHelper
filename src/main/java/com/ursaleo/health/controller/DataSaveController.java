@@ -47,10 +47,21 @@ public class DataSaveController {
                     File file = new File(savePath + File.separator + key + ".json");
                     objectMapper.writeValue(file, value);
                     logger.info("Data for key '{}' saved successfully to '{}'", key, file.getPath());
+            
+                    // Check if the key is "user_data" before creating Busy.txt
+                    if ("user_data".equals(key)) {
+                        // Create an additional empty file named "Busy.txt"
+                        File busyFile = new File(savePath + File.separator + "Busy.txt");
+                        if (busyFile.createNewFile()) {
+                            logger.info("File 'Busy.txt' created successfully at '{}'", busyFile.getPath());
+                        } else {
+                            logger.warn("File 'Busy.txt' already exists at '{}'", busyFile.getPath());
+                        }
+                    }
                 } catch (IOException e) {
                     logger.error("Error saving data for key '{}'", key, e);
                 }
-            });
+            });                    
 
             return ResponseEntity.status(HttpStatus.OK).body("Data saved successfully!");
 
