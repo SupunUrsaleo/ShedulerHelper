@@ -75,31 +75,13 @@ public class CommandService {
     public String executeBatchFile(String publicIp, String privateIp) {
         try {
             // Desired image to select
-            String desiredImage = "8211_49200:latest - my_company.my_editor.kit";
+            String desiredImage = "8211_49200:latest";
 
-            // Create the Expect script inline
-            String expectScript = String.format(
-                "#!/usr/bin/expect -f\n" +
-                "set timeout -1\n" +
-                "spawn sudo ./repo.sh launch --container\n" +
-                "expect \"? Select with arrow keys which containerized App you would like to launch:\"\n" +
-                "send \"%s\\r\"\n" +
-                "expect eof\n", desiredImage);
-
-            // Write the script to a temporary file
-            File tempScript = File.createTempFile("repo_launcher", ".expect");
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(tempScript))) {
-                writer.write(expectScript);
-            }
-
-            // Set the script as executable
-            tempScript.setExecutable(true);
-
-            // Command to execute the Expect script
+            // Command to launch the container directly
             String[] command = {
                 "/bin/bash",
                 "-c",
-                tempScript.getAbsolutePath()
+                "sudo ./repo.sh launch --container --image \"" + desiredImage + "\""
             };
 
             // Set up the ProcessBuilder
@@ -131,5 +113,6 @@ public class CommandService {
             return "Error executing repo.sh: " + e.getMessage();
         }
     }
+
 
 }
