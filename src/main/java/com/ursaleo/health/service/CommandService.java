@@ -1,8 +1,6 @@
 package com.ursaleo.health.service;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.exec.CommandLine;
-import org.apache.commons.exec.DefaultExecutor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -10,6 +8,10 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.util.Arrays;
+import java.io.BufferedWriter;
+import java.io.OutputStreamWriter;
+import java.io.FileWriter;
+
 
 @Service
 @Slf4j
@@ -28,24 +30,24 @@ public class CommandService {
             String pid = getPid(appName);
             if (pid == null || pid.isEmpty()) {
                 port = "NOT_FOUND";
-            }else{
+            } else {
                 // Step 2: Get the port associated with the PID
-                 port = getPorts(pid);
+                port = getPorts(pid);
                 if (port == null || port.isEmpty()) {
-                    port = "Port not found for PID: "+pid;
+                    port = "Port not found for PID: " + pid;
                 }
             }
         } catch (Exception e) {
-            log.error(e.getMessage(),e);
-            port = "Exception when getting port : "+e.getMessage();
+            log.error(e.getMessage(), e);
+            port = "Exception when getting port: " + e.getMessage();
         }
 
         return port;
     }
 
     private String getPid(String appName) throws Exception {
-        String command = "cmd.exe /c tasklist | findstr " + appName;
-        Process pidProcess = Runtime.getRuntime().exec(command);
+        String command = "ps aux | grep " + appName + " | grep -v grep";
+        Process pidProcess = Runtime.getRuntime().exec(new String[]{"/bin/bash", "-c", command});
         BufferedReader pidReader = new BufferedReader(new InputStreamReader(pidProcess.getInputStream()));
         String pidLine = pidReader.readLine();
 
@@ -58,8 +60,8 @@ public class CommandService {
     }
 
     private static String getPorts(String pid) throws Exception {
-        String command = "cmd.exe /c for /f \"tokens=2 delims=:\" %i in ('netstat -ano ^| findstr /r /c:\"TCP.*" + pid + "\"') do @echo %i | for /f \"tokens=1 delims= \" %j in ('more') do @echo %j";
-        Process portProcess = Runtime.getRuntime().exec(command);
+        String command = "netstat -tuln | grep " + pid;
+        Process portProcess = Runtime.getRuntime().exec(new String[]{"/bin/bash", "-c", command});
         BufferedReader portReader = new BufferedReader(new InputStreamReader(portProcess.getInputStream()));
         String portLine;
 
@@ -72,23 +74,62 @@ public class CommandService {
 
     public String executeBatchFile(String publicIp, String privateIp) {
         try {
+            // Desired image to select
+            String desiredImage = "8211_49200:latest - my_company.my_editor.kit";
 
-         /*   String[] command = {"cmd.exe", "/K", "start.bat", publicIp, privateIp};
-            log.info("Executing command {}", Arrays.toString(command));
+            // Create the Expect script inline
+            String expectScript = String.format(
+                "#!/usr/bin/expect -f\n" +
+                "set timeout -1\n" +
+                "spawn sudo ./repo.sh launch --container\n" +
+                "expect \"? Select with arrow keys which containerized App you would like to launch:\"\n" +
+                "send \"%s\\r\"\n" +
+                "expect eof\n", desiredImage);
+
+            // Write the script to a temporary file
+            File tempScript = File.createTempFile("repo_launcher", ".expect");
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(tempScript))) {
+                writer.write(expectScript);
+            }
+
+            // Set the script as executable
+            tempScript.setExecutable(true);
+
+            // Command to execute the Expect script
+            String[] command = {
+                "/bin/bash",
+                "-c",
+                tempScript.getAbsolutePath()
+            };
+
+            // Set up the ProcessBuilder
             ProcessBuilder processBuilder = new ProcessBuilder(command);
-            processBuilder.directory(new File(batchFileLocation));
-            processBuilder.start();*/
+            processBuilder.directory(new File("/home/ubuntu/-gemini-kit-106.3")); // Replace with actual directory
+            processBuilder.redirectErrorStream(true);
 
-            CommandLine cmd = new CommandLine("cmd.exe ");
-            cmd.addArgument("/c");
-            String command = String.format("cmd.exe /K start.bat %s %s",publicIp, privateIp);
-            cmd.addArgument(command,false);
-            DefaultExecutor.builder().setWorkingDirectory(new File(batchFileLocation)).get().execute(cmd);
-            return "SUCCESS";
+            // Start the process
+            Process process = processBuilder.start();
+
+            // Read the output from the process
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    System.out.println(line); // Log process output
+                }
+            }
+
+            // Wait for the process to complete
+            int exitCode = process.waitFor();
+            if (exitCode == 0) {
+                return "SUCCESS";
+            } else {
+                return "Process exited with error code: " + exitCode;
+            }
 
         } catch (Exception e) {
-            log.error("Error executing batch file: {}", e.getMessage(), e);
-            return "Error executing batch file: " + e.getMessage();
+            log.error("Error executing repo.sh: {}", e.getMessage(), e);
+            return "Error executing repo.sh: " + e.getMessage();
         }
     }
+
 }

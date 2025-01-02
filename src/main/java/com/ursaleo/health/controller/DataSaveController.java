@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.nio.file.Path;
 import java.util.Map;
 
 @RestController
@@ -40,14 +40,14 @@ public class DataSaveController {
 
         try {
             // Ensure the directory exists
-            Files.createDirectories(Paths.get(savePath));
+            Files.createDirectories(Path.of(savePath));
 
             partnerSecureData.forEach((key, value) -> {
                 try {
                     File file = new File(savePath + File.separator + key + ".json");
                     objectMapper.writeValue(file, value);
                     logger.info("Data for key '{}' saved successfully to '{}'", key, file.getPath());
-            
+
                     // Check if the key is "user_data" before creating Busy.txt
                     if ("user_data".equals(key)) {
                         // Create an additional empty file named "Busy.txt"
@@ -61,7 +61,7 @@ public class DataSaveController {
                 } catch (IOException e) {
                     logger.error("Error saving data for key '{}'", key, e);
                 }
-            });                    
+            });
 
             return ResponseEntity.status(HttpStatus.OK).body("Data saved successfully!");
 
