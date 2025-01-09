@@ -26,22 +26,28 @@ public class CommandService {
     public String getApplicationPort() {
         String port = "";
         try {
-            // Step 1: Get the PID of the application
-            String pid = getPid(appName);
-            if (pid == null || pid.isEmpty()) {
-                port = "NOT_FOUND";
-            } else {
-                // Step 2: Get the port associated with the PID
-                port = getPorts(pid);
-                if (port == null || port.isEmpty()) {
-                    port = "Port not found for PID: " + pid;
+            int targetPort = 8011; // Change this to the port you want to check
+            String command = "nc -zv localhost " + targetPort;
+            Process process = Runtime.getRuntime().exec(new String[]{"/bin/bash", "-c", command});
+            
+            // Read from error stream instead of input stream
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream())); 
+            String line;
+            
+            while ((line = reader.readLine()) != null) {
+                if (line.contains("succeeded")) {
+                    port = "SUCCESS";
+                    break;
                 }
             }
+            
+            if (port.isEmpty()) {
+                port = "NOT_FOUND";
+            }
         } catch (Exception e) {
-            log.error(e.getMessage(), e);
+            System.err.println("Exception when checking port: " + e.getMessage());
             port = "Exception when getting port: " + e.getMessage();
         }
-
         return port;
     }
 
@@ -75,7 +81,7 @@ public class CommandService {
     public String executeBatchFile(String publicIp, String privateIp) {
         try {
             // Desired image to select
-            String desiredImage = "8211_49200:latest";
+            String desiredImage = "8011_49100:latest";
 
             // Command to launch the container directly
             String[] command = {

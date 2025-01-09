@@ -10,8 +10,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
 import java.util.Map;
 
 @RestController
@@ -20,7 +20,7 @@ public class DataSaveController {
 
     private static final Logger logger = LoggerFactory.getLogger(DataSaveController.class);
 
-    @Value("${save.path}")
+    @Value("${save.path}")  // Ensure this is set in application.properties or application.yml
     private String savePath;
 
     private final ObjectMapper objectMapper;
@@ -39,29 +39,38 @@ public class DataSaveController {
         }
 
         try {
-            // Ensure the directory exists
-            Files.createDirectories(Path.of(savePath));
+            // Ensure the directory exists (Linux-compatible)
+            Path directoryPath = Paths.get(savePath);
+            Files.createDirectories(directoryPath);
+            logger.info("Ensured directory exists: {}", directoryPath.toAbsolutePath());
 
-            partnerSecureData.forEach((key, value) -> {
+            // Process each data key
+            for (Map.Entry<String, Object> entry : partnerSecureData.entrySet()) {
+                String key = entry.getKey();
+                Object value = entry.getValue();
+
                 try {
-                    File file = new File(savePath + File.separator + key + ".json");
-                    objectMapper.writeValue(file, value);
-                    logger.info("Data for key '{}' saved successfully to '{}'", key, file.getPath());
+                    Path filePath = directoryPath.resolve(key + ".json");
 
-                    // Check if the key is "user_data" before creating Busy.txt
+                    // Write JSON data with UTF-8 encoding (Linux-safe)
+                    Files.write(filePath, objectMapper.writeValueAsString(value).getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+                    logger.info("Data for key '{}' saved successfully to '{}'", key, filePath.toAbsolutePath());
+
+                    // If the key is "user_data", create "Busy.txt"
                     if ("user_data".equals(key)) {
-                        // Create an additional empty file named "Busy.txt"
-                        File busyFile = new File(savePath + File.separator + "Busy.txt");
-                        if (busyFile.createNewFile()) {
-                            logger.info("File 'Busy.txt' created successfully at '{}'", busyFile.getPath());
+                        Path busyFilePath = directoryPath.resolve("Busy.txt");
+                        if (!Files.exists(busyFilePath)) {
+                            Files.createFile(busyFilePath);
+                            logger.info("File 'Busy.txt' created successfully at '{}'", busyFilePath.toAbsolutePath());
                         } else {
-                            logger.warn("File 'Busy.txt' already exists at '{}'", busyFile.getPath());
+                            logger.warn("File 'Busy.txt' already exists at '{}'", busyFilePath.toAbsolutePath());
                         }
                     }
+
                 } catch (IOException e) {
                     logger.error("Error saving data for key '{}'", key, e);
                 }
-            });
+            }
 
             return ResponseEntity.status(HttpStatus.OK).body("Data saved successfully!");
 
