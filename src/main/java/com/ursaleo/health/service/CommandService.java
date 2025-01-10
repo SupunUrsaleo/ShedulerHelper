@@ -36,7 +36,7 @@ public class CommandService {
             
             while ((line = reader.readLine()) != null) {
                 if (line.contains("succeeded")) {
-                    port = "SUCCESS";
+                    port = String.valueOf(targetPort);
                     break;
                 }
             }
