@@ -13,6 +13,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.Map;
+import java.io.InputStreamReader;
+import java.io.BufferedWriter;
+import java.io.BufferedReader;
+import java.io.OutputStreamWriter;
 
 @RestController
 @RequestMapping("/api")
@@ -56,14 +60,15 @@ public class DataSaveController {
                     Files.write(filePath, objectMapper.writeValueAsString(value).getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
                     logger.info("Data for key '{}' saved successfully to '{}'", key, filePath.toAbsolutePath());
 
-                    // If the key is "user_data", create "Busy.txt"
                     if ("user_data".equals(key)) {
-                        Path busyFilePath = directoryPath.resolve("Busy.txt");
-                        if (!Files.exists(busyFilePath)) {
-                            Files.createFile(busyFilePath);
-                            logger.info("File 'Busy.txt' created successfully at '{}'", busyFilePath.toAbsolutePath());
-                        } else {
-                            logger.warn("File 'Busy.txt' already exists at '{}'", busyFilePath.toAbsolutePath());
+                        String scriptPath = "/home/ubuntu/create_busy_file.sh";  // Change to your actual script path
+                        String dockerImage = "8011_49100";  // Modify this if needed
+
+                        try {
+                            executeShellScript(scriptPath, dockerImage);
+                            logger.info("✅ Shell script executed successfully: {}", scriptPath);
+                        } catch (IOException | InterruptedException e) {
+                            logger.error("❌ Error executing shell script: {}", scriptPath, e);
                         }
                     }
 
@@ -79,4 +84,36 @@ public class DataSaveController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error creating directories.");
         }
     }
+
+    private void executeShellScript(String scriptPath, String dockerImage) throws IOException, InterruptedException {
+    File scriptFile = new File(scriptPath);
+
+    // Ensure the script exists before executing
+    if (!scriptFile.exists() || !scriptFile.canExecute()) {
+        logger.error("❌ Shell script '{}' does not exist or is not executable.", scriptPath);
+        return;
+    }
+
+    // Build the process to execute the script with the Docker image name
+    ProcessBuilder processBuilder = new ProcessBuilder(scriptPath, dockerImage);
+    processBuilder.redirectErrorStream(true); // Merge error and output streams
+
+    Process process = processBuilder.start();
+
+    // Read the shell script output
+    BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+    String line;
+    while ((line = reader.readLine()) != null) {
+        logger.info("[Shell Output] {}", line);
+    }
+
+    // Wait for the process to complete
+    int exitCode = process.waitFor();
+    if (exitCode == 0) {
+        logger.info("✅ Shell script '{}' executed successfully.", scriptPath);
+    } else {
+        logger.error("❌ Shell script '{}' failed with exit code {}.", scriptPath, exitCode);
+    }
+    }
+
 }
